@@ -1,10 +1,5 @@
 const STORAGE_KEY = "loan-planner-v1";
-const moneyFormatter = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
-  maximumFractionDigits: 0,
-});
-const numberFormatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
+const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const state = {
   loans: [],
@@ -38,8 +33,24 @@ function toIsoDate(date) {
 }
 
 function fromIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function parseDateInput(value) {
+  const trimmed = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return "";
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return toIsoDate(date);
 }
 
 function addMonths(date, months) {
@@ -55,8 +66,23 @@ function dayDiff(start, end) {
   return Math.max(0, Math.round((end - start) / 86400000));
 }
 
-function formatMoney(value) {
-  return moneyFormatter.format(Math.round(value || 0));
+function formatNumber(value) {
+  return numberFormatter.format(Math.round(value || 0));
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = typeof value === "string" ? fromIsoDate(value) : value;
+  if (!date) return value;
+  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+}
+
+function emptyToNull(value) {
+  return value === "" || value === null || value === undefined ? null : Number(value);
+}
+
+function valueOrDefault(value, fallback) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
 function getDefaultLoan() {
@@ -74,6 +100,7 @@ function getDefaultLoan() {
     notes: "",
     rateAdjustments: [],
     maturityAdjustments: [],
+    actualPayments: {},
     schedule: [],
     totals: null,
   };
@@ -128,8 +155,8 @@ function renderLoanCards() {
     button.className = `loan-card${loan.id === state.selectedId ? " active" : ""}`;
     button.innerHTML = `
       <strong>${loan.name || "Khoản vay chưa đặt tên"}</strong>
-      <span>${formatMoney(Number(loan.principal))}</span>
-      <span>${loan.startDate || ""} đến ${getFinalMaturityDate(loan) || ""}</span>
+      <span>${formatNumber(Number(loan.principal))}</span>
+      <span>${formatDate(loan.startDate)} đến ${formatDate(getFinalMaturityDate(loan))}</span>
     `;
     button.addEventListener("click", () => {
       state.selectedId = loan.id;
@@ -147,8 +174,8 @@ function renderForm() {
   elements.formTitle.textContent = loan.name || "Khoản vay mới";
   elements.form.loanName.value = loan.name || "";
   elements.form.principal.value = loan.principal || 0;
-  elements.form.startDate.value = loan.startDate || "";
-  elements.form.maturityDate.value = loan.maturityDate || "";
+  elements.form.startDate.value = formatDate(loan.startDate);
+  elements.form.maturityDate.value = formatDate(loan.maturityDate);
   elements.form.annualRate.value = loan.annualRate ?? 0;
   elements.form.interestMode.value = loan.interestMode || "simple";
   elements.form.repaymentType.value = loan.repaymentType || "bullet";
@@ -177,9 +204,13 @@ function renderRateAdjustments(rows) {
     wrapper.className = "adjustment-row";
 
     const dateInput = document.createElement("input");
-    dateInput.type = "date";
-    dateInput.value = row.date || "";
-    dateInput.addEventListener("input", () => updateAdjustment("rateAdjustments", index, "date", dateInput.value));
+    dateInput.type = "text";
+    dateInput.inputMode = "numeric";
+    dateInput.placeholder = "dd/mm/yyyy";
+    dateInput.value = formatDate(row.date);
+    dateInput.addEventListener("change", () =>
+      updateAdjustment("rateAdjustments", index, "date", parseDateInput(dateInput.value)),
+    );
 
     const rateInput = document.createElement("input");
     rateInput.type = "number";
@@ -195,7 +226,7 @@ function renderRateAdjustments(rows) {
     noteInput.addEventListener("input", () => updateAdjustment("rateAdjustments", index, "note", noteInput.value));
 
     wrapper.append(
-      adjustmentLabel("Ngày áp dụng", dateInput),
+      adjustmentLabel("Ngày bắt đầu áp dụng", dateInput),
       adjustmentLabel("Lãi mới (%/năm)", rateInput),
       adjustmentLabel("Ghi chú", noteInput),
       removeButton(() => removeAdjustment("rateAdjustments", index)),
@@ -216,9 +247,13 @@ function renderMaturityAdjustments(rows) {
     wrapper.className = "adjustment-row maturity-row";
 
     const dateInput = document.createElement("input");
-    dateInput.type = "date";
-    dateInput.value = row.date || "";
-    dateInput.addEventListener("input", () => updateAdjustment("maturityAdjustments", index, "date", dateInput.value));
+    dateInput.type = "text";
+    dateInput.inputMode = "numeric";
+    dateInput.placeholder = "dd/mm/yyyy";
+    dateInput.value = formatDate(row.date);
+    dateInput.addEventListener("change", () =>
+      updateAdjustment("maturityAdjustments", index, "date", parseDateInput(dateInput.value)),
+    );
 
     const noteInput = document.createElement("input");
     noteInput.type = "text";
@@ -261,15 +296,20 @@ function removeAdjustment(collection, index) {
 function readFormIntoLoan() {
   const loan = selectedLoan();
   if (!loan) return null;
+  const startDateValue = elements.form.startDate.value.trim();
+  const maturityDateValue = elements.form.maturityDate.value.trim();
+  const parsedStartDate = parseDateInput(startDateValue);
+  const parsedMaturityDate = parseDateInput(maturityDateValue);
 
   loan.name = elements.form.loanName.value.trim() || "Khoản vay chưa đặt tên";
   loan.principal = Number(elements.form.principal.value);
-  loan.startDate = elements.form.startDate.value;
-  loan.maturityDate = elements.form.maturityDate.value;
+  if (parsedStartDate || !startDateValue) loan.startDate = parsedStartDate;
+  if (parsedMaturityDate || !maturityDateValue) loan.maturityDate = parsedMaturityDate;
   loan.annualRate = Number(elements.form.annualRate.value);
   loan.interestMode = elements.form.interestMode.value;
   loan.repaymentType = elements.form.repaymentType.value;
   loan.notes = elements.form.notes.value.trim();
+  loan.actualPayments = loan.actualPayments || {};
   return loan;
 }
 
@@ -350,45 +390,66 @@ function calculatePayment(principal, annualRate, remainingPeriods) {
   return (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -remainingPeriods));
 }
 
+function normalizeActualPayment(loan, period, plannedPrincipal, plannedInterest) {
+  const saved = loan.actualPayments?.[period] || {};
+  return {
+    principal: valueOrDefault(saved.principal, plannedPrincipal),
+    interest: valueOrDefault(saved.interest, plannedInterest),
+    penaltyOrPrepayment: valueOrDefault(saved.penaltyOrPrepayment, 0),
+  };
+}
+
 function calculateSchedule(loan) {
   const startDate = fromIsoDate(loan.startDate);
   const maturityDate = fromIsoDate(getFinalMaturityDate(loan));
+  if (!startDate || !maturityDate) {
+    throw new Error("Vui lòng nhập ngày theo định dạng dd/mm/yyyy.");
+  }
   if (!(maturityDate > startDate)) {
     throw new Error("Ngày đáo hạn phải sau ngày giải ngân.");
   }
 
   const dates = buildPaymentDates(startDate, maturityDate);
+  loan.actualPayments = loan.actualPayments || {};
   let principal = Number(loan.principal);
   let previousDate = startDate;
   const rows = [];
 
   dates.forEach((paymentDate, index) => {
+    const period = index + 1;
     const days = dayDiff(previousDate, paymentDate);
     const { rate } = getRateForDate(loan, previousDate);
     const interestResult = getPeriodInterest(loan, principal, previousDate, paymentDate);
-    const interest = interestResult.interest;
+    const plannedInterest = interestResult.interest;
     const isLast = index === dates.length - 1;
-    let principalPaid = 0;
+    let plannedPrincipalPaid = 0;
 
     if (loan.repaymentType === "bullet") {
-      principalPaid = isLast ? principal : 0;
+      plannedPrincipalPaid = isLast ? principal : 0;
     } else {
       const payment = calculatePayment(principal, rate, dates.length - index);
-      principalPaid = Math.min(principal, Math.max(0, payment - interest));
-      if (isLast) principalPaid = principal;
+      plannedPrincipalPaid = Math.min(principal, Math.max(0, payment - plannedInterest));
+      if (isLast) plannedPrincipalPaid = principal;
     }
 
-    const totalPaid = principalPaid + interest;
-    principal = Math.max(0, principal - principalPaid);
+    const actual = normalizeActualPayment(loan, period, plannedPrincipalPaid, plannedInterest);
+    const actualPrincipalPaid = Math.min(principal, Math.max(0, actual.principal));
+    const actualInterestPaid = Math.max(0, actual.interest);
+    const penaltyOrPrepayment = actual.penaltyOrPrepayment;
+    const totalPaid = actualPrincipalPaid + actualInterestPaid + penaltyOrPrepayment;
+    principal = Math.max(0, principal - actualPrincipalPaid);
 
     rows.push({
-      period: index + 1,
+      period,
       fromDate: toIsoDate(previousDate),
       toDate: toIsoDate(paymentDate),
       days,
       rateLabel: interestResult.rateLabel,
-      principalPaid,
-      interest,
+      plannedPrincipalPaid,
+      plannedInterest,
+      actualPrincipalPaid,
+      actualInterestPaid,
+      penaltyOrPrepayment,
       totalPaid,
       remainingPrincipal: principal,
       note: isLast ? [interestResult.note, "Đáo hạn"].filter(Boolean).join("; ") : interestResult.note,
@@ -399,11 +460,21 @@ function calculateSchedule(loan) {
 
   const totals = rows.reduce(
     (sum, row) => ({
-      principalPaid: sum.principalPaid + row.principalPaid,
-      interest: sum.interest + row.interest,
+      plannedPrincipalPaid: sum.plannedPrincipalPaid + row.plannedPrincipalPaid,
+      plannedInterest: sum.plannedInterest + row.plannedInterest,
+      actualPrincipalPaid: sum.actualPrincipalPaid + row.actualPrincipalPaid,
+      actualInterestPaid: sum.actualInterestPaid + row.actualInterestPaid,
+      penaltyOrPrepayment: sum.penaltyOrPrepayment + row.penaltyOrPrepayment,
       totalPaid: sum.totalPaid + row.totalPaid,
     }),
-    { principalPaid: 0, interest: 0, totalPaid: 0 },
+    {
+      plannedPrincipalPaid: 0,
+      plannedInterest: 0,
+      actualPrincipalPaid: 0,
+      actualInterestPaid: 0,
+      penaltyOrPrepayment: 0,
+      totalPaid: 0,
+    },
   );
 
   return { rows, totals };
@@ -415,7 +486,7 @@ function renderSchedule(loan) {
 
   if (!loan.schedule?.length) {
     elements.scheduleBody.innerHTML = `
-      <tr><td colspan="10" class="empty-state">Bấm "Tính toán" để xem kế hoạch trả nợ.</td></tr>
+      <tr><td colspan="13" class="empty-state">Bấm "Tính toán" để xem kế hoạch trả nợ.</td></tr>
     `;
     return;
   }
@@ -425,14 +496,17 @@ function renderSchedule(loan) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${row.period}</td>
-      <td>${row.fromDate}</td>
-      <td>${row.toDate}</td>
-      <td>${numberFormatter.format(row.days)}</td>
+      <td>${formatDate(row.fromDate)}</td>
+      <td>${formatDate(row.toDate)}</td>
+      <td>${formatNumber(row.days)}</td>
       <td>${row.rateLabel}</td>
-      <td>${formatMoney(row.principalPaid)}</td>
-      <td>${formatMoney(row.interest)}</td>
-      <td>${formatMoney(row.totalPaid)}</td>
-      <td>${formatMoney(row.remainingPrincipal)}</td>
+      <td>${formatNumber(row.plannedPrincipalPaid)}</td>
+      <td>${formatNumber(row.plannedInterest)}</td>
+      <td>${paymentInput(row.period, "principal", row.actualPrincipalPaid)}</td>
+      <td>${paymentInput(row.period, "interest", row.actualInterestPaid)}</td>
+      <td>${paymentInput(row.period, "penaltyOrPrepayment", row.penaltyOrPrepayment)}</td>
+      <td>${formatNumber(row.totalPaid)}</td>
+      <td>${formatNumber(row.remainingPrincipal)}</td>
       <td>${row.note || ""}</td>
     `;
     fragment.appendChild(tr);
@@ -442,19 +516,38 @@ function renderSchedule(loan) {
   totalRow.className = "total-row";
   totalRow.innerHTML = `
     <td colspan="5">Tổng cộng</td>
-    <td>${formatMoney(loan.totals.principalPaid)}</td>
-    <td>${formatMoney(loan.totals.interest)}</td>
-    <td>${formatMoney(loan.totals.totalPaid)}</td>
-    <td>${formatMoney(loan.schedule.at(-1).remainingPrincipal)}</td>
+    <td>${formatNumber(loan.totals.plannedPrincipalPaid)}</td>
+    <td>${formatNumber(loan.totals.plannedInterest)}</td>
+    <td>${formatNumber(loan.totals.actualPrincipalPaid)}</td>
+    <td>${formatNumber(loan.totals.actualInterestPaid)}</td>
+    <td>${formatNumber(loan.totals.penaltyOrPrepayment)}</td>
+    <td>${formatNumber(loan.totals.totalPaid)}</td>
+    <td>${formatNumber(loan.schedule.at(-1).remainingPrincipal)}</td>
     <td></td>
   `;
   fragment.appendChild(totalRow);
   elements.scheduleBody.appendChild(fragment);
 
   elements.summary.innerHTML = `
-    <div class="summary-item"><span>Tổng lãi</span><strong>${formatMoney(loan.totals.interest)}</strong></div>
-    <div class="summary-item"><span>Gốc + lãi</span><strong>${formatMoney(loan.totals.totalPaid)}</strong></div>
+    <div class="summary-item"><span>Lãi thực trả</span><strong>${formatNumber(loan.totals.actualInterestPaid)}</strong></div>
+    <div class="summary-item"><span>Phạt/trả trước</span><strong>${formatNumber(loan.totals.penaltyOrPrepayment)}</strong></div>
+    <div class="summary-item"><span>Tổng thực trả</span><strong>${formatNumber(loan.totals.totalPaid)}</strong></div>
     <div class="summary-item"><span>Số kỳ</span><strong>${loan.schedule.length}</strong></div>
+  `;
+}
+
+function paymentInput(period, field, value) {
+  return `
+    <input
+      class="payment-input"
+      type="number"
+      min="0"
+      step="1000"
+      data-period="${period}"
+      data-field="${field}"
+      value="${Math.round(value || 0)}"
+      aria-label="${field} kỳ ${period}"
+    />
   `;
 }
 
@@ -500,6 +593,10 @@ async function connectDriveFile() {
 
 elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!parseDateInput(elements.form.startDate.value) || !parseDateInput(elements.form.maturityDate.value)) {
+    alert("Vui lòng nhập ngày theo định dạng dd/mm/yyyy.");
+    return;
+  }
   const loan = readFormIntoLoan();
   try {
     const { rows, totals } = calculateSchedule(loan);
@@ -516,6 +613,30 @@ elements.form.addEventListener("input", () => {
   readFormIntoLoan();
   renderLoanCards();
   saveState();
+});
+
+elements.scheduleBody.addEventListener("change", async (event) => {
+  const input = event.target.closest(".payment-input");
+  if (!input) return;
+
+  const loan = selectedLoan();
+  if (!loan) return;
+
+  const period = input.dataset.period;
+  const field = input.dataset.field;
+  loan.actualPayments = loan.actualPayments || {};
+  loan.actualPayments[period] = loan.actualPayments[period] || {};
+  loan.actualPayments[period][field] = emptyToNull(input.value);
+
+  try {
+    const { rows, totals } = calculateSchedule(loan);
+    loan.schedule = rows;
+    loan.totals = totals;
+    await saveState();
+    renderSchedule(loan);
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 elements.newLoanButton.addEventListener("click", async () => {

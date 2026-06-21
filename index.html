@@ -54,11 +54,11 @@
               </label>
               <label>
                 Ngày giải ngân
-                <input id="startDate" name="startDate" type="date" required />
+                <input id="startDate" name="startDate" type="text" inputmode="numeric" placeholder="dd/mm/yyyy" required />
               </label>
               <label>
                 Ngày đáo hạn
-                <input id="maturityDate" name="maturityDate" type="date" required />
+                <input id="maturityDate" name="maturityDate" type="text" inputmode="numeric" placeholder="dd/mm/yyyy" required />
               </label>
               <label>
                 Lãi suất (%/năm)
@@ -124,9 +124,12 @@
                     <th>Đến ngày</th>
                     <th>Số ngày</th>
                     <th>Lãi suất</th>
-                    <th>Gốc trả</th>
-                    <th>Lãi trả</th>
-                    <th>Tổng trả</th>
+                    <th>Gốc theo kế hoạch</th>
+                    <th>Lãi theo kế hoạch</th>
+                    <th>Thực trả gốc</th>
+                    <th>Thực trả lãi</th>
+                    <th>Lãi phạt/trả trước hạn</th>
+                    <th>Tổng thực trả</th>
                     <th>Dư nợ gốc còn lại</th>
                     <th>Ghi chú</th>
                   </tr>

@@ -328,7 +328,7 @@ textarea:focus {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1120px;
+  min-width: 1480px;
 }
 
 th,
@@ -364,6 +364,12 @@ tfoot td,
 .total-row td {
   background: #ecfdf3;
   font-weight: 800;
+}
+
+.payment-input {
+  min-width: 118px;
+  padding: 7px 8px;
+  text-align: right;
 }
 
 .empty-state {
