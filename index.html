@@ -27,9 +27,13 @@
             </label>
           </div>
           <label class="drive-client">
-            Google OAuth Client ID
-            <input id="googleClientId" type="text" placeholder="...apps.googleusercontent.com" />
+            Mã ứng dụng Google Drive
+            <input id="googleClientId" type="text" placeholder="Dán OAuth Client ID vào đây" />
           </label>
+          <p class="drive-help">
+            Trình duyệt đã đăng nhập Google vẫn cần mã ứng dụng để Google cho trang này xin quyền lưu dữ liệu vào Drive.
+            Tạo mã trong Google Cloud, loại Web application, origin: <strong>https://huynhcokho.github.io</strong>.
+          </p>
           <p id="driveStatus" class="drive-status">Drive chưa kết nối.</p>
 
           <div id="loanCards" class="loan-cards"></div>

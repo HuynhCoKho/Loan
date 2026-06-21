@@ -174,11 +174,11 @@ function updateDriveStatus(text) {
   }
 
   if (state.driveClientId) {
-    elements.driveStatus.textContent = "Đã lưu Client ID. Bấm Kết nối Drive để đăng nhập Google.";
+    elements.driveStatus.textContent = "Đã lưu mã ứng dụng. Bấm Kết nối Drive để Google hiện màn hình xin quyền.";
     return;
   }
 
-  elements.driveStatus.textContent = "Drive chưa kết nối.";
+  elements.driveStatus.textContent = "Drive chưa kết nối. Cần mã ứng dụng Google trước khi xin quyền Drive.";
 }
 
 function getDataPayload() {
@@ -656,10 +656,12 @@ function loadScript(src) {
 function getDriveClientId() {
   const clientId = elements.googleClientId.value.trim();
   if (!clientId) {
-    throw new Error("Vui lòng nhập Google OAuth Client ID trước khi kết nối Drive.");
+    throw new Error(
+      "Trình duyệt đã đăng nhập Google nhưng trang web vẫn cần Mã ứng dụng Google Drive để xin quyền. Vui lòng tạo OAuth Client ID trong Google Cloud rồi dán vào ô này.",
+    );
   }
   if (!clientId.endsWith(".apps.googleusercontent.com")) {
-    throw new Error("Google OAuth Client ID chưa đúng định dạng.");
+    throw new Error("Mã ứng dụng Google Drive thường có dạng ...apps.googleusercontent.com.");
   }
   state.driveClientId = clientId;
   saveDriveSettings();
@@ -780,7 +782,7 @@ function scheduleDriveSave() {
 
 async function connectDriveFile() {
   const clientId = getDriveClientId();
-  updateDriveStatus("Đang mở màn hình đăng nhập Google...");
+  updateDriveStatus("Đang mở màn hình Google xin quyền truy cập Drive...");
   await loadScript("https://accounts.google.com/gsi/client");
   state.accessToken = await requestGoogleAccessToken(clientId);
   updateDriveStatus("Đã đăng nhập Google. Đang tạo/cập nhật file trên Drive...");

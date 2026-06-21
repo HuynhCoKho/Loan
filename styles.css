@@ -172,6 +172,18 @@ h3 {
   margin-bottom: 18px;
 }
 
+.drive-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: -2px 0 8px;
+}
+
+.drive-help strong {
+  color: #344054;
+  font-weight: 700;
+}
+
 .drive-status a {
   color: var(--accent);
   font-weight: 700;
