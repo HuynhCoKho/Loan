@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kế hoạch trả nợ vay</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <aside class="loan-list" aria-label="Danh sách khoản vay">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Khoản vay</p>
+              <h1>Kế hoạch trả nợ</h1>
+            </div>
+            <button class="icon-button" id="newLoanButton" type="button" title="Tạo khoản vay mới">+</button>
+          </div>
+
+          <div class="storage-actions">
+            <button id="connectDriveButton" type="button">Kết nối Drive</button>
+            <button id="exportButton" type="button">Xuất dữ liệu</button>
+            <label class="import-button">
+              Nhập dữ liệu
+              <input id="importInput" type="file" accept="application/json" />
+            </label>
+          </div>
+
+          <div id="loanCards" class="loan-cards"></div>
+        </aside>
+
+        <section class="calculator">
+          <form id="loanForm" class="loan-form">
+            <div class="form-toolbar">
+              <div>
+                <p class="eyebrow">Thông tin vay</p>
+                <h2 id="formTitle">Khoản vay mới</h2>
+              </div>
+              <div class="toolbar-actions">
+                <button id="deleteLoanButton" type="button" class="secondary danger">Xóa</button>
+                <button id="calculateButton" type="submit">Tính toán</button>
+              </div>
+            </div>
+
+            <div class="grid">
+              <label>
+                Tên khoản vay
+                <input id="loanName" name="loanName" type="text" placeholder="Ví dụ: Vay mua nhà" required />
+              </label>
+              <label>
+                Số tiền vay
+                <input id="principal" name="principal" type="number" min="0" step="1000000" required />
+              </label>
+              <label>
+                Ngày giải ngân
+                <input id="startDate" name="startDate" type="date" required />
+              </label>
+              <label>
+                Ngày đáo hạn
+                <input id="maturityDate" name="maturityDate" type="date" required />
+              </label>
+              <label>
+                Lãi suất (%/năm)
+                <input id="annualRate" name="annualRate" type="number" min="0" step="0.01" required />
+              </label>
+              <label>
+                Loại lãi
+                <select id="interestMode" name="interestMode">
+                  <option value="simple">Lãi đơn</option>
+                  <option value="compound">Lãi kép</option>
+                </select>
+              </label>
+              <label>
+                Cách trả nợ
+                <select id="repaymentType" name="repaymentType">
+                  <option value="bullet">Trả gốc cuối kỳ, lãi trả hàng tháng</option>
+                  <option value="annuity">Gốc và lãi trả đều hàng tháng</option>
+                </select>
+              </label>
+              <label>
+                Ghi chú
+                <textarea id="notes" name="notes" rows="3" placeholder="Ghi chú thỏa thuận, phụ lục, lý do điều chỉnh..."></textarea>
+              </label>
+            </div>
+
+            <section class="adjustment-section">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Tùy chọn</p>
+                  <h3>Điều chỉnh lãi suất</h3>
+                </div>
+                <button id="addRateButton" type="button" class="secondary">Thêm lãi suất</button>
+              </div>
+              <div id="rateAdjustments" class="adjustment-list"></div>
+            </section>
+
+            <section class="adjustment-section">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Gia hạn</p>
+                  <h3>Điều chỉnh ngày đáo hạn</h3>
+                </div>
+                <button id="addMaturityButton" type="button" class="secondary">Thêm gia hạn</button>
+              </div>
+              <div id="maturityAdjustments" class="adjustment-list"></div>
+            </section>
+          </form>
+
+          <section class="result-panel">
+            <div class="result-header">
+              <div>
+                <p class="eyebrow">Bảng tính</p>
+                <h2>Kế hoạch trả nợ</h2>
+              </div>
+              <div class="summary" id="summary"></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kỳ</th>
+                    <th>Từ ngày</th>
+                    <th>Đến ngày</th>
+                    <th>Số ngày</th>
+                    <th>Lãi suất</th>
+                    <th>Gốc trả</th>
+                    <th>Lãi trả</th>
+                    <th>Tổng trả</th>
+                    <th>Dư nợ gốc còn lại</th>
+                    <th>Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody id="scheduleBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
