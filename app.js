@@ -1,7 +1,7 @@
 const STORAGE_KEY = "loan-planner-v1";
 const DRIVE_SETTINGS_KEY = "loan-planner-drive-v1";
 // Set this once for the deployed app so users only need to approve the Google popup.
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_FILE_NAME = "loan-planner-data.json";
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
