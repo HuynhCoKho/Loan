@@ -15,8 +15,16 @@ Web app tinh ke hoach tra no goc va lai vay bang tieng Viet.
 - Cho nhap goc thuc tra, lai thuc tra, lai phat qua han hoac phi tra truoc han theo tung ky.
 - Tu dong tinh lai cac ky tiep theo dua tren du no goc thuc te sau moi lan sua so tien thuc tra.
 - Tao, sua, xoa khoan vay.
-- Luu cuc bo tren trinh duyet, xuat/nhap JSON, hoac ket noi file du lieu de luu vao thu muc Google Drive dong bo.
+- Luu cuc bo tren trinh duyet, xuat/nhap JSON, hoac ket noi Google Drive bang OAuth de luu file `loan-planner-data.json`.
 
 ## Su dung
 
 Mo `index.html` trong trinh duyet hoac bat GitHub Pages cho repository nay.
+
+## Google Drive
+
+Ung dung chay tinh tren GitHub Pages nen can mot Google OAuth Client ID loai Web application.
+
+- Authorized JavaScript origin: `https://huynhcokho.github.io`
+- Scope can dung: `https://www.googleapis.com/auth/drive.file`
+- Sau khi nhap Client ID trong app va bam Ket noi Drive, Google se hien man hinh dang nhap/xin quyen.

@@ -1,10 +1,18 @@
 const STORAGE_KEY = "loan-planner-v1";
+const DRIVE_SETTINGS_KEY = "loan-planner-drive-v1";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_FILE_NAME = "loan-planner-data.json";
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const state = {
   loans: [],
   selectedId: null,
-  fileHandle: null,
+  accessToken: "",
+  driveFileId: "",
+  driveFileLink: "",
+  driveClientId: "",
+  driveSaveTimer: null,
+  isDriveSaving: false,
 };
 
 const elements = {
@@ -22,6 +30,8 @@ const elements = {
   exportButton: document.getElementById("exportButton"),
   importInput: document.getElementById("importInput"),
   connectDriveButton: document.getElementById("connectDriveButton"),
+  googleClientId: document.getElementById("googleClientId"),
+  driveStatus: document.getElementById("driveStatus"),
 };
 
 function uid() {
@@ -124,17 +134,64 @@ function loadState() {
   state.selectedId = firstLoan.id;
 }
 
-async function saveState() {
+function loadDriveSettings() {
+  const saved = localStorage.getItem(DRIVE_SETTINGS_KEY);
+  if (!saved) return;
+
+  try {
+    const settings = JSON.parse(saved);
+    state.driveClientId = settings.clientId || "";
+    state.driveFileId = settings.fileId || "";
+    state.driveFileLink = settings.fileLink || "";
+    elements.googleClientId.value = state.driveClientId;
+  } catch {
+    localStorage.removeItem(DRIVE_SETTINGS_KEY);
+  }
+}
+
+function saveDriveSettings() {
+  localStorage.setItem(
+    DRIVE_SETTINGS_KEY,
+    JSON.stringify({
+      clientId: state.driveClientId,
+      fileId: state.driveFileId,
+      fileLink: state.driveFileLink,
+    }),
+  );
+}
+
+function updateDriveStatus(text) {
+  if (text) {
+    elements.driveStatus.textContent = text;
+    return;
+  }
+
+  if (state.accessToken && state.driveFileId) {
+    elements.driveStatus.innerHTML = state.driveFileLink
+      ? `Drive đã kết nối. <a href="${state.driveFileLink}" target="_blank" rel="noreferrer">Mở file dữ liệu</a>`
+      : "Drive đã kết nối.";
+    return;
+  }
+
+  if (state.driveClientId) {
+    elements.driveStatus.textContent = "Đã lưu Client ID. Bấm Kết nối Drive để đăng nhập Google.";
+    return;
+  }
+
+  elements.driveStatus.textContent = "Drive chưa kết nối.";
+}
+
+function getDataPayload() {
+  return { loans: state.loans, selectedId: state.selectedId };
+}
+
+async function saveState(options = {}) {
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ loans: state.loans, selectedId: state.selectedId }, null, 2),
+    JSON.stringify(getDataPayload(), null, 2),
   );
 
-  if (state.fileHandle) {
-    const writable = await state.fileHandle.createWritable();
-    await writable.write(JSON.stringify({ loans: state.loans }, null, 2));
-    await writable.close();
-  }
+  if (!options.skipDrive) scheduleDriveSave();
 }
 
 function selectedLoan() {
@@ -558,7 +615,7 @@ function render() {
 }
 
 async function exportData() {
-  const blob = new Blob([JSON.stringify({ loans: state.loans }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(getDataPayload(), null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -572,23 +629,162 @@ async function importData(file) {
   const parsed = JSON.parse(text);
   if (!Array.isArray(parsed.loans)) throw new Error("File dữ liệu không hợp lệ.");
   state.loans = parsed.loans;
-  state.selectedId = state.loans[0]?.id || null;
+  state.selectedId = parsed.selectedId || state.loans[0]?.id || null;
   await saveState();
   render();
 }
 
-async function connectDriveFile() {
-  if (!window.showSaveFilePicker) {
-    alert("Trình duyệt này chưa hỗ trợ kết nối file. Bạn vẫn có thể dùng Xuất dữ liệu/Nhập dữ liệu.");
-    return;
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      if (window.google?.accounts?.oauth2) resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Không tải được thư viện đăng nhập Google."));
+    document.head.appendChild(script);
+  });
+}
+
+function getDriveClientId() {
+  const clientId = elements.googleClientId.value.trim();
+  if (!clientId) {
+    throw new Error("Vui lòng nhập Google OAuth Client ID trước khi kết nối Drive.");
+  }
+  if (!clientId.endsWith(".apps.googleusercontent.com")) {
+    throw new Error("Google OAuth Client ID chưa đúng định dạng.");
+  }
+  state.driveClientId = clientId;
+  saveDriveSettings();
+  updateDriveStatus();
+  return clientId;
+}
+
+function requestGoogleAccessToken(clientId) {
+  return new Promise((resolve, reject) => {
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      prompt: "consent",
+      callback: (response) => {
+        if (response.error) {
+          reject(new Error(response.error_description || response.error));
+          return;
+        }
+        resolve(response.access_token);
+      },
+    });
+    tokenClient.requestAccessToken();
+  });
+}
+
+async function driveRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${state.accessToken}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    const error = new Error(message || `Google Drive trả lỗi ${response.status}.`);
+    error.status = response.status;
+    throw error;
   }
 
-  state.fileHandle = await window.showSaveFilePicker({
-    suggestedName: "loan-planner-data.json",
-    types: [{ description: "Loan planner JSON", accept: { "application/json": [".json"] } }],
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.includes("application/json") ? response.json() : response.text();
+}
+
+async function createDriveFile() {
+  const boundary = `loan_planner_${Date.now()}`;
+  const metadata = { name: DRIVE_FILE_NAME, mimeType: "application/json" };
+  const body = [
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify(getDataPayload(), null, 2),
+    `--${boundary}--`,
+  ].join("\r\n");
+
+  return driveRequest("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
   });
-  await saveState();
-  alert("Đã kết nối file dữ liệu. Nếu lưu file này trong thư mục Google Drive đồng bộ, dữ liệu sẽ được Drive sao lưu.");
+}
+
+async function updateDriveFile() {
+  return driveRequest(`https://www.googleapis.com/upload/drive/v3/files/${state.driveFileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify(getDataPayload(), null, 2),
+  });
+}
+
+async function saveToDriveNow() {
+  if (!state.accessToken) return;
+  if (state.isDriveSaving) return;
+
+  state.isDriveSaving = true;
+  updateDriveStatus("Đang lưu dữ liệu lên Google Drive...");
+
+  try {
+    if (state.driveFileId) {
+      try {
+        await updateDriveFile();
+      } catch (error) {
+        if (error.status !== 404) throw error;
+        state.driveFileId = "";
+        state.driveFileLink = "";
+        const file = await createDriveFile();
+        state.driveFileId = file.id;
+        state.driveFileLink = file.webViewLink || "";
+        saveDriveSettings();
+      }
+    } else {
+      const file = await createDriveFile();
+      state.driveFileId = file.id;
+      state.driveFileLink = file.webViewLink || "";
+      saveDriveSettings();
+    }
+    updateDriveStatus();
+  } catch (error) {
+    updateDriveStatus("Không lưu được lên Drive. Bấm Kết nối Drive để đăng nhập lại.");
+    console.error(error);
+  } finally {
+    state.isDriveSaving = false;
+  }
+}
+
+function scheduleDriveSave() {
+  if (!state.accessToken) return;
+  clearTimeout(state.driveSaveTimer);
+  state.driveSaveTimer = setTimeout(() => {
+    saveToDriveNow();
+  }, 900);
+}
+
+async function connectDriveFile() {
+  const clientId = getDriveClientId();
+  updateDriveStatus("Đang mở màn hình đăng nhập Google...");
+  await loadScript("https://accounts.google.com/gsi/client");
+  state.accessToken = await requestGoogleAccessToken(clientId);
+  updateDriveStatus("Đã đăng nhập Google. Đang tạo/cập nhật file trên Drive...");
+  await saveToDriveNow();
 }
 
 elements.form.addEventListener("submit", async (event) => {
@@ -673,6 +869,11 @@ elements.addMaturityButton.addEventListener("click", async () => {
 
 elements.exportButton.addEventListener("click", exportData);
 elements.connectDriveButton.addEventListener("click", () => connectDriveFile().catch((error) => alert(error.message)));
+elements.googleClientId.addEventListener("change", () => {
+  state.driveClientId = elements.googleClientId.value.trim();
+  saveDriveSettings();
+  updateDriveStatus();
+});
 elements.importInput.addEventListener("change", (event) => {
   const file = event.target.files?.[0];
   if (file) importData(file).catch((error) => alert(error.message));
@@ -680,4 +881,6 @@ elements.importInput.addEventListener("change", (event) => {
 });
 
 loadState();
+loadDriveSettings();
+updateDriveStatus();
 render();

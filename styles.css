@@ -161,6 +161,22 @@ h3 {
   display: none;
 }
 
+.drive-client {
+  margin-bottom: 8px;
+}
+
+.drive-status {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 18px;
+}
+
+.drive-status a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .loan-cards {
   display: grid;
   gap: 10px;
