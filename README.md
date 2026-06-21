@@ -23,8 +23,9 @@ Mo `index.html` trong trinh duyet hoac bat GitHub Pages cho repository nay.
 
 ## Google Drive
 
-Ung dung chay tinh tren GitHub Pages nen can mot Google OAuth Client ID loai Web application.
+Ung dung chay tinh tren GitHub Pages nen chu app can cau hinh mot Google OAuth Client ID loai Web application trong `app.js`.
 
 - Authorized JavaScript origin: `https://huynhcokho.github.io`
 - Scope can dung: `https://www.googleapis.com/auth/drive.file`
-- Sau khi nhap Client ID trong app va bam Ket noi Drive, Google se hien man hinh dang nhap/xin quyen.
+- Dat gia tri vao hang `GOOGLE_CLIENT_ID`.
+- Sau khi cau hinh xong, nguoi dung chi can bam Ket noi Drive, Google se hien man hinh dang nhap/xin quyen.

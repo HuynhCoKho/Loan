@@ -47,6 +47,11 @@ button:hover,
   background: var(--accent-strong);
 }
 
+button:disabled {
+  background: #98a2b3;
+  cursor: not-allowed;
+}
+
 .secondary {
   background: #eef2f6;
   color: var(--ink);
@@ -161,47 +166,11 @@ h3 {
   display: none;
 }
 
-.drive-setup {
-  background: #f8fafc;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin-bottom: 18px;
-  padding: 12px;
-}
-
-.drive-setup-title {
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-
-.drive-client {
-  margin-bottom: 10px;
-}
-
-.drive-client input {
-  background: white;
-  border-color: #9fb6c9;
-}
-
 .drive-status {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
-  margin-top: 8px;
-}
-
-.drive-help {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-  margin: -2px 0 8px;
-}
-
-.drive-help strong {
-  color: #344054;
-  font-weight: 700;
+  margin: 10px 0 18px;
 }
 
 .drive-status a {

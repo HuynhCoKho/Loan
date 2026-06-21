@@ -1,5 +1,7 @@
 const STORAGE_KEY = "loan-planner-v1";
 const DRIVE_SETTINGS_KEY = "loan-planner-drive-v1";
+// Set this once for the deployed app so users only need to approve the Google popup.
+const GOOGLE_CLIENT_ID = "";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_FILE_NAME = "loan-planner-data.json";
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -10,7 +12,6 @@ const state = {
   accessToken: "",
   driveFileId: "",
   driveFileLink: "",
-  driveClientId: "",
   driveSaveTimer: null,
   isDriveSaving: false,
 };
@@ -30,7 +31,6 @@ const elements = {
   exportButton: document.getElementById("exportButton"),
   importInput: document.getElementById("importInput"),
   connectDriveButton: document.getElementById("connectDriveButton"),
-  googleClientId: document.getElementById("googleClientId"),
   driveStatus: document.getElementById("driveStatus"),
 };
 
@@ -140,10 +140,8 @@ function loadDriveSettings() {
 
   try {
     const settings = JSON.parse(saved);
-    state.driveClientId = settings.clientId || "";
     state.driveFileId = settings.fileId || "";
     state.driveFileLink = settings.fileLink || "";
-    elements.googleClientId.value = state.driveClientId;
   } catch {
     localStorage.removeItem(DRIVE_SETTINGS_KEY);
   }
@@ -153,7 +151,6 @@ function saveDriveSettings() {
   localStorage.setItem(
     DRIVE_SETTINGS_KEY,
     JSON.stringify({
-      clientId: state.driveClientId,
       fileId: state.driveFileId,
       fileLink: state.driveFileLink,
     }),
@@ -161,6 +158,8 @@ function saveDriveSettings() {
 }
 
 function updateDriveStatus(text) {
+  elements.connectDriveButton.disabled = !GOOGLE_CLIENT_ID;
+
   if (text) {
     elements.driveStatus.textContent = text;
     return;
@@ -173,12 +172,12 @@ function updateDriveStatus(text) {
     return;
   }
 
-  if (state.driveClientId) {
-    elements.driveStatus.textContent = "Đã lưu mã ứng dụng. Bấm Kết nối Drive để Google hiện màn hình xin quyền.";
+  if (GOOGLE_CLIENT_ID) {
+    elements.driveStatus.textContent = "Bấm Kết nối Drive để Google hiện màn hình xin quyền.";
     return;
   }
 
-  elements.driveStatus.textContent = "Drive chưa kết nối. Cần mã ứng dụng Google trước khi xin quyền Drive.";
+  elements.driveStatus.textContent = "Drive chưa được cấu hình cho app này.";
 }
 
 function getDataPayload() {
@@ -654,17 +653,15 @@ function loadScript(src) {
 }
 
 function getDriveClientId() {
-  const clientId = elements.googleClientId.value.trim();
+  const clientId = GOOGLE_CLIENT_ID.trim();
   if (!clientId) {
     throw new Error(
-      "Trình duyệt đã đăng nhập Google nhưng trang web vẫn cần Mã ứng dụng Google Drive để xin quyền. Vui lòng tạo OAuth Client ID trong Google Cloud rồi dán vào ô này.",
+      "Drive chưa được cấu hình cho app này. Chủ app cần thêm Google OAuth Client ID vào mã nguồn để người dùng chỉ bấm Kết nối Drive là thấy popup xin quyền.",
     );
   }
   if (!clientId.endsWith(".apps.googleusercontent.com")) {
-    throw new Error("Mã ứng dụng Google Drive thường có dạng ...apps.googleusercontent.com.");
+    throw new Error("Google OAuth Client ID trong mã nguồn chưa đúng định dạng.");
   }
-  state.driveClientId = clientId;
-  saveDriveSettings();
   updateDriveStatus();
   return clientId;
 }
@@ -871,11 +868,6 @@ elements.addMaturityButton.addEventListener("click", async () => {
 
 elements.exportButton.addEventListener("click", exportData);
 elements.connectDriveButton.addEventListener("click", () => connectDriveFile().catch((error) => alert(error.message)));
-elements.googleClientId.addEventListener("change", () => {
-  state.driveClientId = elements.googleClientId.value.trim();
-  saveDriveSettings();
-  updateDriveStatus();
-});
 elements.importInput.addEventListener("change", (event) => {
   const file = event.target.files?.[0];
   if (file) importData(file).catch((error) => alert(error.message));
