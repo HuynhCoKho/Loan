@@ -4,7 +4,7 @@ const DRIVE_SETTINGS_KEY = "loan-planner-drive-v1";
 const GOOGLE_CLIENT_ID = "806114616037-tk1ohpbv8vhh0ftsk1igei9u7np5jk5u.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_FILE_NAME = "loan-planner-data.json";
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const numberFormatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
 
 const state = {
   loans: [],
@@ -78,6 +78,14 @@ function dayDiff(start, end) {
 
 function formatNumber(value) {
   return numberFormatter.format(Math.round(value || 0));
+}
+
+function parseFormattedNumber(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const cleaned = String(value).replace(/[.\s]/g, "").replace(",", ".");
+  if (cleaned === "" || cleaned === "-") return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatDate(value) {
@@ -596,12 +604,11 @@ function paymentInput(period, field, value) {
   return `
     <input
       class="payment-input"
-      type="number"
-      min="0"
-      step="1000"
+      type="text"
+      inputmode="numeric"
       data-period="${period}"
       data-field="${field}"
-      value="${Math.round(value || 0)}"
+      value="${formatNumber(value)}"
       aria-label="${field} kỳ ${period}"
     />
   `;
@@ -810,6 +817,20 @@ elements.form.addEventListener("input", () => {
   saveState();
 });
 
+elements.scheduleBody.addEventListener("focusin", (event) => {
+  const input = event.target.closest(".payment-input");
+  if (!input) return;
+  const raw = parseFormattedNumber(input.value);
+  input.value = raw === null ? "" : String(Math.round(raw));
+});
+
+elements.scheduleBody.addEventListener("focusout", (event) => {
+  const input = event.target.closest(".payment-input");
+  if (!input) return;
+  const raw = parseFormattedNumber(input.value);
+  input.value = formatNumber(raw || 0);
+});
+
 elements.scheduleBody.addEventListener("change", async (event) => {
   const input = event.target.closest(".payment-input");
   if (!input) return;
@@ -821,7 +842,7 @@ elements.scheduleBody.addEventListener("change", async (event) => {
   const field = input.dataset.field;
   loan.actualPayments = loan.actualPayments || {};
   loan.actualPayments[period] = loan.actualPayments[period] || {};
-  loan.actualPayments[period][field] = emptyToNull(input.value);
+  loan.actualPayments[period][field] = parseFormattedNumber(input.value);
 
   try {
     const { rows, totals } = calculateSchedule(loan);
